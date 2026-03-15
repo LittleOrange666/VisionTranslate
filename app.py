@@ -22,7 +22,7 @@ def process_image(image):
     try:
         ocr_prompt = "Carefully transcribe all the text found in this image. Do not translate. Output the original text as is."
 
-        ocr_response = ollama.chat(
+        ocr_response = client.chat(
             model=MODEL_NAME,
             messages=[{
                 'role': 'user',
@@ -38,7 +38,7 @@ def process_image(image):
 
         translation_prompt = f"Translate the following text to Traditional Chinese: {original_text}"
         
-        translation_response = ollama.chat(
+        translation_response = client.chat(
             model=MODEL_NAME,
             messages=[{
                 'role': 'user',
@@ -75,4 +75,4 @@ with gr.Blocks(title="Gemma 3 視覺翻譯器") as demo:
     )
 
 if __name__ == "__main__":
-    demo.launch(share=False,server_name="0.0.0.0", server_port=int(port))
+    demo.launch(share=False,debug=True,server_name="0.0.0.0", server_port=int(port))
