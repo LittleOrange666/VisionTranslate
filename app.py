@@ -20,7 +20,7 @@ Produce only the {TARGET_LANG} translation, without any additional explanations 
 
 SOURCE_LANG = os.getenv("SOURCE_LANG","English")
 SOURCE_CODE = os.getenv("SOURCE_CODE","en")
-TARGET_LANG = os.getenv("TARGET_LANG","Chinese")
+TARGET_LANG = os.getenv("TARGET_LANG","Traditional Chinese")
 TARGET_CODE = os.getenv("TARGET_CODE","zh-TW")
 
 def process_logic(image, manual_text):
