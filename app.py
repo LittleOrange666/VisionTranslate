@@ -12,32 +12,41 @@ port = os.getenv("SERVER_PORT", "7860")
 
 client = ollama.Client(host=host)
 
-def process_image(image):
-    if image is None:
-        return "請先上傳圖片。", "請先上傳圖片。"
-    image_file = tempfile.NamedTemporaryFile(suffix=".png",delete=False)
-    image.save(image_file.name)
-    image_file.close()
+translate_prompt_template = """You are a professional {SOURCE_LANG} ({SOURCE_CODE}) to {TARGET_LANG} ({TARGET_CODE}) translator. Your goal is to accurately convey the meaning and nuances of the original {SOURCE_LANG} text while adhering to {TARGET_LANG} grammar, vocabulary, and cultural sensitivities.
+Produce only the {TARGET_LANG} translation, without any additional explanations or commentary. Please translate the following {SOURCE_LANG} text into {TARGET_LANG}:
+
+
+{TEXT}"""
+
+SOURCE_LANG = os.getenv("SOURCE_LANG","English")
+SOURCE_CODE = os.getenv("SOURCE_CODE","en")
+TARGET_LANG = os.getenv("TARGET_LANG","Chinese")
+TARGET_CODE = os.getenv("TARGET_CODE","zh-TW")
+
+def process_logic(image, manual_text):
+    original_text = ""
 
     try:
-        ocr_prompt = "Carefully transcribe all the text found in this image. Do not translate. Output the original text as is."
+        if image is not None:
+            ocr_prompt = "Carefully transcribe all the text found in this image. Do not translate. Output the original text as is."
+            ocr_response = client.chat(
+                model=MODEL_NAME,
+                messages=[{
+                    'role': 'user',
+                    'content': ocr_prompt,
+                    'images': [image]
+                }]
+            )
+            original_text = ocr_response['message']['content'].strip()
 
-        ocr_response = client.chat(
-            model=MODEL_NAME,
-            messages=[{
-                'role': 'user',
-                'content': ocr_prompt,
-                'images': [image_file.name]
-            }]
-        )
-        
-        original_text = ocr_response['message']['content'].strip()
-        
-        if not original_text:
-            return "無法從圖片中提取文字。", "無法進行翻譯。"
+        elif manual_text and manual_text.strip():
+            original_text = manual_text.strip()
 
-        translation_prompt = f"Translate the following text to Traditional Chinese: {original_text}"
-        
+        else:
+            return "請提供圖片或輸入文字。", "請提供圖片或輸入文字。"
+
+        # 進行翻譯
+        translation_prompt = translate_prompt_template.format(SOURCE_CODE=SOURCE_CODE, SOURCE_LANG=SOURCE_LANG, TARGET_LANG=TARGET_LANG, TARGET_CODE=TARGET_CODE, TEXT=original_text)
         translation_response = client.chat(
             model=MODEL_NAME,
             messages=[{
@@ -45,33 +54,36 @@ def process_image(image):
                 'content': translation_prompt
             }]
         )
-        
         translated_text = translation_response['message']['content'].strip()
-        
+
         return original_text, translated_text
 
     except Exception as e:
-        return f"發生錯誤: {str(e)}", f"發生錯誤: {str(e)}"
-    finally:
-        os.remove(image_file.name)
+        return f"錯誤: {str(e)}", f"錯誤: {str(e)}"
 
-with gr.Blocks(title="Gemma 3 視覺翻譯器") as demo:
-    gr.Markdown("# Gemma 3 圖片原文與翻譯提取")
-    gr.Markdown("上傳一張包含文字的圖片，本程式將利用 `translategemma` 模型為你提取圖中的原文，並翻譯為繁體中文。")
-    
+
+with gr.Blocks(title="Gemma 3 翻譯工具") as demo:
+    gr.Markdown("# 🍊 TranslateGemma 多功能翻譯器")
+
     with gr.Row():
         with gr.Column(scale=2):
-            image_input = gr.Image(type="pil", label="上傳圖片")
+            with gr.Tabs():
+                with gr.TabItem("圖片翻譯"):
+                    img_input = gr.Image(type="pil", label="上傳包含文字的圖片")
+
+                with gr.TabItem("手動輸入"):
+                    txt_input = gr.Textbox(label="請輸入欲翻譯的原文", lines=10, placeholder="在此輸入文字...")
+
             submit_btn = gr.Button("開始處理", variant="primary")
-            
+
         with gr.Column(scale=3):
-            original_output = gr.Textbox(label="提取出的原文 (Original Text)", lines=8)
-            translated_output = gr.Textbox(label="翻譯後的繁體中文 (Traditional Chinese)", lines=8)
+            out_original = gr.Textbox(label="提取/輸入的原文", lines=8, buttons=["copy"])
+            out_translated = gr.Textbox(label="繁體中文譯文", lines=8, buttons=["copy"])
 
     submit_btn.click(
-        fn=process_image,
-        inputs=image_input,
-        outputs=[original_output, translated_output]
+        fn=process_logic,
+        inputs=[img_input, txt_input],
+        outputs=[out_original, out_translated]
     )
 
 if __name__ == "__main__":
