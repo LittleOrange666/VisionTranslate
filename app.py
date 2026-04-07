@@ -1,5 +1,6 @@
 import os
 import tempfile
+import traceback
 
 import gradio as gr
 import ollama
@@ -21,20 +22,23 @@ Produce only the {TARGET_LANG} translation, without any additional explanations 
 SOURCE_LANG = os.getenv("SOURCE_LANG","English")
 SOURCE_CODE = os.getenv("SOURCE_CODE","en")
 TARGET_LANG = os.getenv("TARGET_LANG","Traditional Chinese")
-TARGET_CODE = os.getenv("TARGET_CODE","zh-TW")
+TARGET_CODE = os.getenv("TARGET_CODE","zh-hant")
 
 def process_logic(image, manual_text):
     original_text = ""
-
+    image_file = None
     try:
         if image is not None:
+            image_file = tempfile.NamedTemporaryFile(suffix=".png",delete=False)
+            image.save(image_file.name)
+            image_file.close()
             ocr_prompt = "Carefully transcribe all the text found in this image. Do not translate. Output the original text as is."
             ocr_response = client.chat(
                 model=MODEL_NAME,
                 messages=[{
                     'role': 'user',
                     'content': ocr_prompt,
-                    'images': [image]
+                    'images': [image_file.name]
                 }]
             )
             original_text = ocr_response['message']['content'].strip()
@@ -59,7 +63,11 @@ def process_logic(image, manual_text):
         return original_text, translated_text
 
     except Exception as e:
+        traceback.print_exception(e)
         return f"錯誤: {str(e)}", f"錯誤: {str(e)}"
+    finally:
+        if image_file is not None:
+            os.remove(image_file.name)
 
 
 with gr.Blocks(title="Gemma 3 翻譯工具") as demo:

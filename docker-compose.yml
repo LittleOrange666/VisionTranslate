@@ -1,6 +1,6 @@
 services:
   vision-translate:
-    image: littleorange666/vision_translate:1.1.1
+    image: littleorange666/vision_translate:1.1.2
     restart: on-failure
     ports:
       - "7862:7860"
