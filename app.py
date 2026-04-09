@@ -22,17 +22,30 @@ Produce only the {TARGET_LANG} translation, without any additional explanations 
 SOURCE_LANG = os.getenv("SOURCE_LANG","English")
 SOURCE_CODE = os.getenv("SOURCE_CODE","en")
 TARGET_LANG = os.getenv("TARGET_LANG","Traditional Chinese")
-TARGET_CODE = os.getenv("TARGET_CODE","zh-hant")
+TARGET_CODE = os.getenv("TARGET_CODE","zh-Hant")
 
-def process_logic(image, manual_text):
+SUPPORTED_LANGUAGES = [
+    ("English", "en"),
+    ("Traditional Chinese", "zh-Hant"),
+    ("Japanese", "ja")
+]
+
+
+lang_choices = [f"{lang[0]} ({lang[1]})" for lang in SUPPORTED_LANGUAGES]
+
+lang_map = {f"{lang[0]} ({lang[1]})":lang for lang in SUPPORTED_LANGUAGES}
+
+def process_logic(image, manual_text, src_lang_name, tgt_lang_name):
     original_text = ""
     image_file = None
     try:
+        src_name,src_code = lang_map.get(src_lang_name)
+        tgt_name,tgt_code = lang_map.get(tgt_lang_name)
         if image is not None:
             image_file = tempfile.NamedTemporaryFile(suffix=".png",delete=False)
             image.save(image_file.name)
             image_file.close()
-            ocr_prompt = "Carefully transcribe all the text found in this image. Do not translate. Output the original text as is."
+            ocr_prompt = f"Carefully transcribe all the {src_lang_name} text found in this image. Do not translate. Output the original text as is."
             ocr_response = client.chat(
                 model=MODEL_NAME,
                 messages=[{
@@ -50,7 +63,7 @@ def process_logic(image, manual_text):
             return "請提供圖片或輸入文字。", "請提供圖片或輸入文字。"
 
         # 進行翻譯
-        translation_prompt = translate_prompt_template.format(SOURCE_CODE=SOURCE_CODE, SOURCE_LANG=SOURCE_LANG, TARGET_LANG=TARGET_LANG, TARGET_CODE=TARGET_CODE, TEXT=original_text)
+        translation_prompt = translate_prompt_template.format(SOURCE_CODE=src_code, SOURCE_LANG=src_name, TARGET_LANG=tgt_name, TARGET_CODE=tgt_code, TEXT=original_text)
         translation_response = client.chat(
             model=MODEL_NAME,
             messages=[{
@@ -69,28 +82,31 @@ def process_logic(image, manual_text):
         if image_file is not None:
             os.remove(image_file.name)
 
-
-with gr.Blocks(title="Gemma 3 翻譯工具") as demo:
-    gr.Markdown("# 🍊 TranslateGemma 多功能翻譯器")
+with gr.Blocks(title="Gemma 3 進階翻譯器") as demo:
+    gr.Markdown("# 🍊 TranslateGemma 多功能翻譯器 (進階版)")
 
     with gr.Row():
         with gr.Column(scale=2):
+            with gr.Row():
+                src_lang = gr.Dropdown(choices=lang_choices, value=f"{SOURCE_LANG} ({SOURCE_CODE})", label="來源語言 (From)")
+                tgt_lang = gr.Dropdown(choices=lang_choices, value=f"{TARGET_LANG} ({TARGET_CODE})", label="目標語言 (To)")
+
             with gr.Tabs():
-                with gr.TabItem("圖片翻譯"):
-                    img_input = gr.Image(type="pil", label="上傳包含文字的圖片")
+                with gr.TabItem("圖片上傳"):
+                    img_input = gr.Image(type="pil", label="上傳圖片")
 
                 with gr.TabItem("手動輸入"):
-                    txt_input = gr.Textbox(label="請輸入欲翻譯的原文", lines=10, placeholder="在此輸入文字...")
+                    txt_input = gr.Textbox(label="原文內容", lines=10, placeholder="在此輸入文字...")
 
-            submit_btn = gr.Button("開始處理", variant="primary")
+            submit_btn = gr.Button("開始翻譯", variant="primary")
 
         with gr.Column(scale=3):
-            out_original = gr.Textbox(label="提取/輸入的原文", lines=8, buttons=["copy"])
-            out_translated = gr.Textbox(label="繁體中文譯文", lines=8, buttons=["copy"])
+            out_original = gr.Textbox(label="偵測/提取的原文", lines=10, buttons=["copy"])
+            out_translated = gr.Textbox(label="翻譯結果", lines=10, buttons=["copy"])
 
     submit_btn.click(
         fn=process_logic,
-        inputs=[img_input, txt_input],
+        inputs=[img_input, txt_input, src_lang, tgt_lang],
         outputs=[out_original, out_translated]
     )
 
